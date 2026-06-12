@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Secrets - NEVER commit these
+.env
+
+# Uploaded files
+backend/uploads/
+
+# Build output
+frontend/dist/
+
+# OS junk
+.DS_Store

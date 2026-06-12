@@ -1,0 +1,6 @@
+import api from './api';
+
+export const analyticsService = {
+  dashboard: () => api.get('/analytics/dashboard'),
+  productivity: () => api.get('/analytics/productivity'),
+};
