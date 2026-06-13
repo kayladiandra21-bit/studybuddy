@@ -11,7 +11,15 @@ const app = express();
 const server = http.createServer(app);
 
 // ---------- Global middlewares ----------
-app.use(cors({ origin: process.env.CLIENT_URL || '*' }));
+// CLIENT_URL can be one origin or several (comma-separated) for production.
+const allowedOrigins = (process.env.CLIENT_URL || '*')
+  .split(',')
+  .map((s) => s.trim());
+app.use(
+  cors({
+    origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+  })
+);
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -38,7 +46,7 @@ app.use(errorHandler);
 // ---------- Socket.io (real-time group chat) ----------
 const { Server } = require('socket.io');
 const io = new Server(server, {
-  cors: { origin: process.env.CLIENT_URL || '*' },
+  cors: { origin: allowedOrigins.includes('*') ? '*' : allowedOrigins },
 });
 require('./sockets/chatSocket')(io);
 
@@ -46,7 +54,11 @@ require('./sockets/chatSocket')(io);
 require('./utils/reminderJob')();
 
 // ---------- Start ----------
+const initDb = require('./config/initDb');
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`✅ StudyBuddy API running at http://localhost:${PORT}`);
+
+initDb().then(() => {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ StudyBuddy API running on port ${PORT}`);
+  });
 });

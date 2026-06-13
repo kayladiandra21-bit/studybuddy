@@ -1,20 +1,22 @@
 // config/db.js
-// Single shared MySQL connection pool for the whole app.
-// Using mysql2/promise so every query can be awaited.
-
+// MySQL connection pool. Works two ways:
+//  - Locally: separate DB_HOST/DB_USER/DB_PASSWORD/DB_NAME from .env
+//  - On Railway: a single MYSQL_URL connection string (set automatically)
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'studybuddy',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  dateStrings: true, // return DATETIME as strings (easier for the frontend)
-});
+const pool = process.env.MYSQL_URL
+  ? mysql.createPool(process.env.MYSQL_URL + '?dateStrings=true')
+  : mysql.createPool({
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 3306,
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'studybuddy',
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      dateStrings: true,
+    });
 
 module.exports = pool;
