@@ -1,6 +1,7 @@
 // config/initDb.js
 // On startup, create tables if the `users` table is missing.
-// Lets the app set itself up on a fresh hosted database (Railway).
+// Runs the entire schema.sql in a single multi-statement query (reliable),
+// then seeds a little demo data so the hosted site isn't empty.
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
@@ -11,37 +12,26 @@ async function initDb() {
       `SELECT COUNT(*) AS n FROM information_schema.tables
        WHERE table_schema = DATABASE() AND table_name = 'users'`
     );
-    if (tables[0].n > 0) return; // already set up
+    if (tables[0].n > 0) {
+      console.log('Tables already exist — skipping schema creation.');
+    } else {
+      console.log('🔧 First run: creating tables…');
+      let raw = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 
-    console.log('🔧 First run: creating tables…');
-    let raw = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
+      // Remove CREATE DATABASE / USE lines (hosted DB already exists).
+      // Keep everything else intact and run it as ONE multi-statement query.
+      const cleaned = raw
+        .split('\n')
+        .filter((line) => {
+          const l = line.trim().toUpperCase();
+          return !l.startsWith('CREATE DATABASE') && !l.startsWith('USE ');
+        })
+        .join('\n');
 
-    // Strip SQL comments (-- ... to end of line) and CREATE/USE DATABASE lines.
-    // Doing this BEFORE splitting on ';' avoids comments with parentheses
-    // breaking the statement splitter.
-    const cleaned = raw
-      .split('\n')
-      .map((line) => {
-        const noComment = line.replace(/--.*$/, ''); // remove inline/line comments
-        return noComment;
-      })
-      .filter((line) => {
-        const l = line.trim().toUpperCase();
-        return !l.startsWith('CREATE DATABASE') && !l.startsWith('USE ');
-      })
-      .join('\n');
-
-    const statements = cleaned
-      .split(';')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    for (const stmt of statements) {
-      await db.query(stmt);
+      await db.query(cleaned);
+      console.log('✅ Tables created.');
     }
-    console.log('✅ Tables created.');
 
-    // Auto-seed demo data on a fresh hosted DB so the live site isn't empty
     try {
       await seedDemo();
     } catch (e) {
@@ -52,13 +42,15 @@ async function initDb() {
   }
 }
 
-// Minimal demo seed for the hosted database (admin + one student with data).
 async function seedDemo() {
   const bcrypt = require('bcryptjs');
   const [exists] = await db.query(
     `SELECT id FROM users WHERE email = 'admin@studybuddy.test'`
   );
-  if (exists.length > 0) return;
+  if (exists.length > 0) {
+    console.log('Demo data already present.');
+    return;
+  }
 
   console.log('🌱 Seeding demo data…');
   const hashAdmin = await bcrypt.hash('admin123', 10);
@@ -77,13 +69,13 @@ async function seedDemo() {
   await db.query(
     `INSERT INTO tasks (user_id, title, subject, priority, due_date, status, completed_at) VALUES
      (?, 'Web Dev assignment: REST API', 'Web Development', 'high', DATE_ADD(NOW(), INTERVAL 2 DAY), 'pending', NULL),
-     (?, 'Read chapter 5 — Normalization', 'Databases', 'medium', DATE_ADD(NOW(), INTERVAL 4 DAY), 'pending', NULL),
-     (?, 'Quiz prep: SQL joins', 'Databases', 'high', DATE_SUB(NOW(), INTERVAL 3 DAY), 'completed', DATE_SUB(NOW(), INTERVAL 3 DAY))`,
+     (?, 'Read chapter 5 Normalization', 'Databases', 'medium', DATE_ADD(NOW(), INTERVAL 4 DAY), 'pending', NULL),
+     (?, 'Quiz prep SQL joins', 'Databases', 'high', DATE_SUB(NOW(), INTERVAL 3 DAY), 'completed', DATE_SUB(NOW(), INTERVAL 3 DAY))`,
     [budiId, budiId, budiId]
   );
   await db.query(
     `INSERT INTO events (user_id, title, category, event_date) VALUES
-     (?, 'Midterm exam — Databases', 'exam', DATE_ADD(NOW(), INTERVAL 5 DAY))`,
+     (?, 'Midterm exam Databases', 'exam', DATE_ADD(NOW(), INTERVAL 5 DAY))`,
     [budiId]
   );
   for (let d = 5; d >= 0; d--) {
